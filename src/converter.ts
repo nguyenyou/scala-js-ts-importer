@@ -199,7 +199,7 @@ function processModuleDeclaration(node: ts.ModuleDeclaration, writer: CodeBlockW
 function processClassDeclaration(node: ts.ClassDeclaration, writer: CodeBlockWriter, namespace: string): void {
   const className = node.name?.getText() || 'AnonymousClass'
   const isAbstract = node.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AbstractKeyword)
-  const isExport = hasExportModifier(node)
+  // const isExport = hasExportModifier(node) // Unused for now
   
   // Handle reserved words for class names
   // Use shared SCALA_RESERVED_WORDS constant
@@ -222,7 +222,7 @@ function processClassDeclaration(node: ts.ClassDeclaration, writer: CodeBlockWri
   const staticProperties: ts.PropertyDeclaration[] = []
 
   node.members.forEach(member => {
-    if (member.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword)) {
+    if (ts.canHaveModifiers(member) && ts.getModifiers(member)?.some((m: ts.Modifier) => m.kind === ts.SyntaxKind.StaticKeyword)) {
       if (ts.isMethodDeclaration(member)) staticMethods.push(member)
       else if (ts.isPropertyDeclaration(member)) staticProperties.push(member)
     }
@@ -279,7 +279,7 @@ function processClassDeclaration(node: ts.ClassDeclaration, writer: CodeBlockWri
 
     // Non-static members
     node.members.forEach(member => {
-      if (member.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword)) return
+      if (ts.canHaveModifiers(member) && ts.getModifiers(member)?.some((m: ts.Modifier) => m.kind === ts.SyntaxKind.StaticKeyword)) return
       processClassMember(member, writer, isAbstract)
     })
   })
@@ -316,9 +316,9 @@ function processClassDeclaration(node: ts.ClassDeclaration, writer: CodeBlockWri
   writer.setIndentationLevel(currentIndentLevel)
 }
 
-function processInterfaceDeclaration(node: ts.InterfaceDeclaration, writer: CodeBlockWriter, namespace: string): void {
+function processInterfaceDeclaration(node: ts.InterfaceDeclaration, writer: CodeBlockWriter, _namespace: string): void {
   const interfaceName = node.name.getText()
-  const isExport = hasExportModifier(node)
+  // const isExport = hasExportModifier(node) // Unused for now
   
   // Handle type parameters
   const typeParams = node.typeParameters?.map(tp => {
@@ -363,16 +363,11 @@ function processInterfaceDeclaration(node: ts.InterfaceDeclaration, writer: Code
   const currentIndentLevel = writer.getIndentationLevel()
   writer.setIndentationLevel(0)
 
-  if (isExport) {
-    // Exported interfaces should not get @JSGlobal
-    writeInterfaceTrait()
-  } else {
-    // Non-exported interfaces at top level should not have @JSGlobal either
-    writeInterfaceTrait()
-  }
+  // All interfaces get the same treatment for now
+  writeInterfaceTrait()
 
   // Generate companion object with nested traits for inline object literal types
-  const inlineTypeLiteralMembers = node.members.filter(m => ts.isPropertySignature(m) && m.type && ts.isTypeLiteralNode((m as ts.PropertySignature).type)) as ts.PropertySignature[]
+  const inlineTypeLiteralMembers = node.members.filter(m => ts.isPropertySignature(m) && m.type && ts.isTypeLiteralNode(m.type)) as ts.PropertySignature[]
   if (inlineTypeLiteralMembers.length > 0) {
     writer.newLine()
     writer.write(`object ${interfaceName} `).block(() => {
@@ -394,7 +389,7 @@ function processInterfaceDeclaration(node: ts.InterfaceDeclaration, writer: Code
         })
 
         // Recursively handle deeper nested type literals by creating an object inside
-        const deepInlineMembers = typeLiteral.members.filter(mem => ts.isPropertySignature(mem) && mem.type && ts.isTypeLiteralNode((mem as ts.PropertySignature).type)) as ts.PropertySignature[]
+        const deepInlineMembers = typeLiteral.members.filter(mem => ts.isPropertySignature(mem) && mem.type && ts.isTypeLiteralNode(mem.type)) as ts.PropertySignature[]
         if (deepInlineMembers.length > 0) {
           writer.newLine()
           writer.write(`object ${traitName} `).block(() => {
@@ -572,7 +567,7 @@ function processIndexSignature(node: ts.IndexSignatureDeclaration, writer: CodeB
 
 function processEnumDeclaration(node: ts.EnumDeclaration, writer: CodeBlockWriter, namespace: string): void {
   const enumName = node.name.getText()
-  const isExport = hasExportModifier(node)
+  // const isExport = hasExportModifier(node) // Unused for now
   
   // Generate sealed trait
   writer.newLine()
@@ -607,7 +602,7 @@ function processEnumDeclaration(node: ts.EnumDeclaration, writer: CodeBlockWrite
   writer.setIndentationLevel(currentIndentLevel)
 }
 
-function processTypeAliasDeclaration(node: ts.TypeAliasDeclaration, writer: CodeBlockWriter, namespace: string): void {
+function processTypeAliasDeclaration(_node: ts.TypeAliasDeclaration, _writer: CodeBlockWriter, _namespace: string): void {
   // All type aliases are deferred to either module objects (for namespaces) 
   // or global scope objects (for top level). Don't process them immediately.
   return
@@ -647,13 +642,13 @@ function processVariableStatement(node: ts.VariableStatement, writer: CodeBlockW
       writer.setIndentationLevel(currentIndentLevel)
     } else {
       // Handle other variable types
-      const varType = decl.type ? convertTypeToScala(decl.type) : 'js.Any'
+      // const varType = decl.type ? convertTypeToScala(decl.type) : 'js.Any' // Unused for now
       // Variables go into global scope object - we'll collect them for later processing
     }
   })
 }
 
-function processFunctionDeclaration(node: ts.FunctionDeclaration, writer: CodeBlockWriter, namespace: string): void {
+function processFunctionDeclaration(node: ts.FunctionDeclaration, _writer: CodeBlockWriter, _namespace: string): void {
   const functionName = node.name?.getText()
   if (!functionName) return
   
@@ -1030,24 +1025,8 @@ function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-function processExportAssignment(node: ts.ExportAssignment, writer: CodeBlockWriter, namespace: string): void {
+function processExportAssignment(_node: ts.ExportAssignment, _writer: CodeBlockWriter, _namespace: string): void {
   // Export assignments are handled in the global scope object generation
   // No direct processing needed here
 }
 
-function processInterfaceMembersWithDeduplication(members: readonly ts.TypeElement[], writer: CodeBlockWriter): void {
-  const seen = new Set<string>()
-  members.forEach(member => {
-    const tempWriter = new CodeBlockWriter({ indentNumberOfSpaces: 0, newLine: '\n' })
-    if (ts.isMethodSignature(member)) {
-      processMethodSignature(member, tempWriter)
-    } else {
-      processInterfaceMember(member, tempWriter)
-    }
-    const sig = tempWriter.toString().trim()
-    if (!seen.has(sig)) {
-      seen.add(sig)
-      writer.writeLine(sig)
-    }
-  })
-}
