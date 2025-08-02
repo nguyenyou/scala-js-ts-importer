@@ -14,6 +14,7 @@ import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { ScrollArea } from "./components/ui/scroll-area";
 import { Textarea } from "./components/ui/textarea";
+import { CodeHighlighter } from "./components/CodeHighlighter";
 import { convertTsToScala } from "./converter";
 
 interface SampleFile {
@@ -407,20 +408,21 @@ declare module 'my-module' {
           </CardHeader>
           <CardContent className="flex-1 p-0 overflow-hidden">
             <ScrollArea className="h-full">
-              <div className="relative h-full">
-                <pre className="p-4 text-sm font-mono bg-slate-50 text-slate-800 whitespace-pre-wrap min-h-full">
-                  {mode === "samples"
-                    ? selectedFile?.tsContent || (
-                        <span className="text-slate-500 italic">
-                          Select a file to view its TypeScript content
-                        </span>
-                      )
-                    : customTsContent || (
-                        <span className="text-slate-500 italic">
-                          Enter TypeScript code in the left panel to see it here
-                        </span>
-                      )}
-                </pre>
+              <div className="relative h-full px-4">
+                {(mode === "samples" && selectedFile?.tsContent) || (mode === "custom" && customTsContent) ? (
+                  <CodeHighlighter
+                    code={mode === "samples" ? selectedFile?.tsContent || "" : customTsContent}
+                    language="typescript"
+                  />
+                ) : (
+                  <div className="p-4 text-sm font-mono bg-slate-50 text-slate-800 whitespace-pre-wrap min-h-full">
+                    <span className="text-slate-500 italic">
+                      {mode === "samples"
+                        ? "Select a file to view its TypeScript content"
+                        : "Enter TypeScript code in the left panel to see it here"}
+                    </span>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </CardContent>
@@ -454,22 +456,24 @@ declare module 'my-module' {
           </CardHeader>
           <CardContent className="flex-1 p-0 overflow-hidden">
             <ScrollArea className="h-full">
-              <div className="relative h-full">
-                <pre className="p-4 text-sm font-mono bg-slate-50 text-slate-800 whitespace-pre-wrap min-h-full">
-                  {mode === "samples"
-                    ? selectedFile?.scalaContent || (
-                        <span className="text-slate-500 italic">
-                          Select a file to view the generated Scala code
-                        </span>
-                      )
-                    : customScalaContent || (
-                        <span className="text-slate-500 italic">
-                          {customTsContent
-                            ? 'Click "Convert to Scala" to generate the Scala bindings'
-                            : "Enter TypeScript code and click convert to see the generated Scala code"}
-                        </span>
-                      )}
-                </pre>
+              <div className="relative h-full px-4">
+                {(mode === "samples" && selectedFile?.scalaContent && !selectedFile.scalaContent.includes("Scala code will be generated")) || 
+                 (mode === "custom" && customScalaContent) ? (
+                  <CodeHighlighter
+                    code={mode === "samples" ? selectedFile?.scalaContent || "" : customScalaContent}
+                    language="scala"
+                  />
+                ) : (
+                  <div className="p-4 text-sm font-mono bg-slate-50 text-slate-800 whitespace-pre-wrap min-h-full">
+                    <span className="text-slate-500 italic">
+                      {mode === "samples"
+                        ? "Select a file to view the generated Scala code"
+                        : customTsContent
+                        ? 'Click "Convert to Scala" to generate the Scala bindings'
+                        : "Enter TypeScript code and click convert to see the generated Scala code"}
+                    </span>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </CardContent>
