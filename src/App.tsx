@@ -64,6 +64,7 @@ function App() {
   const [sampleFiles, setSampleFiles] = useState<SampleFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<SampleFile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState({ loaded: 0, total: 0 });
   const [mode, setMode] = useState<"samples" | "custom">("samples");
   const [customTsContent, setCustomTsContent] = useState("");
   const [customScalaContent, setCustomScalaContent] = useState("");
@@ -75,9 +76,11 @@ function App() {
 
   useEffect(() => {
     const loadSampleFiles = async () => {
-      const files: SampleFile[] = [];
+      const totalFiles = SAMPLE_FILE_NAMES.length;
+      setLoadingProgress({ loaded: 0, total: totalFiles });
 
-      for (const fileName of SAMPLE_FILE_NAMES) {
+      // Create a function to load a single file
+      const loadSingleFile = async (fileName: string): Promise<SampleFile> => {
         try {
           // Load TypeScript declaration file
           const tsResponse = await fetch(joinPaths(import.meta.env.BASE_URL, `samples/${fileName}.d.ts`));
@@ -96,24 +99,42 @@ function App() {
               "// Scala code will be generated when this file is selected";
           }
 
-          files.push({
+          // Update progress after successful load
+          setLoadingProgress(prev => ({ ...prev, loaded: prev.loaded + 1 }));
+
+          return {
             name: fileName,
             tsContent,
             scalaContent,
-          });
+          };
         } catch (error) {
           console.error(`Failed to load ${fileName}:`, error);
-          // Add placeholder for files that fail to load
-          files.push({
+          
+          // Update progress even for failed loads
+          setLoadingProgress(prev => ({ ...prev, loaded: prev.loaded + 1 }));
+          
+          // Return placeholder for files that fail to load
+          return {
             name: fileName,
             tsContent: `// Failed to load ${fileName}.d.ts`,
             scalaContent: `// Failed to load ${fileName}.d.ts.scala`,
-          });
+          };
         }
-      }
+      };
 
-      setSampleFiles(files);
-      setIsLoading(false);
+      try {
+        // Load all files in parallel using Promise.all
+        const filePromises = SAMPLE_FILE_NAMES.map((fileName) => 
+          loadSingleFile(fileName)
+        );
+        
+        const files = await Promise.all(filePromises);
+        setSampleFiles(files);
+      } catch (error) {
+        console.error('Failed to load sample files:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     loadSampleFiles();
@@ -245,7 +266,20 @@ function App() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-lg">Loading sample files...</div>
+        <div className="text-center space-y-3">
+          <div className="text-lg font-medium">Loading sample files...</div>
+          <div className="text-sm text-slate-600">
+            {loadingProgress.loaded}/{loadingProgress.total} files loaded
+          </div>
+          <div className="w-64 bg-slate-200 rounded-full h-2">
+            <div 
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ 
+                width: `${loadingProgress.total > 0 ? (loadingProgress.loaded / loadingProgress.total) * 100 : 0}%` 
+              }}
+            />
+          </div>
+        </div>
       </div>
     );
   }
