@@ -73,14 +73,14 @@ function App() {
       for (const fileName of SAMPLE_FILE_NAMES) {
         try {
           // Load TypeScript declaration file
-          const tsResponse = await fetch(`/samples/${fileName}.d.ts`);
+          const tsResponse = await fetch(`${import.meta.env.BASE_URL}samples/${fileName}.d.ts`);
           const tsContent = await tsResponse.text();
 
           // Load corresponding Scala file (if it exists)
           let scalaContent = "";
           try {
             const scalaResponse = await fetch(
-              `/samples/${fileName}.d.ts.scala`
+              `${import.meta.env.BASE_URL}samples/${fileName}.d.ts.scala`
             );
             scalaContent = await scalaResponse.text();
           } catch {
